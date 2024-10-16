@@ -2,8 +2,9 @@ use std::any::Any;
 
 // Define Input struct to hold conditions for transitions
 struct Input {
-    command_stop: bool,
-    emergency_stop: bool,
+    power_on: bool,
+    brake: bool,
+    e_stop: bool,
 }
 
 // Define trait for transition capabilities
@@ -15,6 +16,7 @@ trait TransitionTo<T> {
 trait State: Any {
     fn state_name(&self) -> &'static str;
     fn as_any(&self) -> &dyn Any;
+    fn perform_action(&self); // Method to perform actions specific to the state
 }
 
 // Define each state as an empty struct
@@ -27,13 +29,18 @@ struct Braking;
 #[derive(Clone)]
 struct Emergency;
 
-// Implement the State trait for each state
+// Implement the State trait for each state with specific actions
 impl State for Init {
     fn state_name(&self) -> &'static str {
         "Init"
     }
+
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn perform_action(&self) {
+        println!("System initializing...");
     }
 }
 
@@ -41,8 +48,13 @@ impl State for Idle {
     fn state_name(&self) -> &'static str {
         "Idle"
     }
+
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn perform_action(&self) {
+        println!("System is idle and ready.");
     }
 }
 
@@ -50,8 +62,13 @@ impl State for Braking {
     fn state_name(&self) -> &'static str {
         "Braking"
     }
+
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn perform_action(&self) {
+        println!("System is braking.");
     }
 }
 
@@ -59,39 +76,44 @@ impl State for Emergency {
     fn state_name(&self) -> &'static str {
         "Emergency"
     }
+
     fn as_any(&self) -> &dyn Any {
         self
+    }
+
+    fn perform_action(&self) {
+        println!("Emergency mode activated!");
     }
 }
 
 // Implement the TransitionTo trait for each valid state transition
 impl TransitionTo<Idle> for Init {
-    fn success(&self, _input: &Input) -> bool {
-        true // Always transition from Init to Idle
+    fn success(&self, input: &Input) -> bool {
+        input.power_on // Transition to Idle if power_on is true
     }
 }
 
 impl TransitionTo<Braking> for Idle {
     fn success(&self, input: &Input) -> bool {
-        input.command_stop // Transition to Braking if command_stop is true
+        input.brake // Transition to Braking if brake is true
     }
 }
 
 impl TransitionTo<Idle> for Braking {
     fn success(&self, input: &Input) -> bool {
-        !input.command_stop // Transition to Idle if command_stop is false
+        !input.brake // Transition to Idle if brake is false
     }
 }
 
 impl TransitionTo<Emergency> for Idle {
     fn success(&self, input: &Input) -> bool {
-        input.emergency_stop // Transition to Emergency if emergency_stop is true
+        input.e_stop // Transition to Emergency if e_stop is true
     }
 }
 
 impl TransitionTo<Idle> for Emergency {
     fn success(&self, input: &Input) -> bool {
-        !input.emergency_stop // Transition to Idle if emergency_stop is false
+        !input.e_stop // Transition to Idle if e_stop is false
     }
 }
 
@@ -125,6 +147,9 @@ impl BrakeController {
                 self.state = Box::new(Idle);
             }
         }
+
+        // Call the action method after the state is updated
+        self.state.perform_action();
     }
 
     // Method to get the current state's name
@@ -139,34 +164,37 @@ fn main() {
 
     // Create an input struct instance
     let mut input = Input {
-        command_stop: false,
-        emergency_stop: false,
+        power_on: false,
+        brake: false,
+        e_stop: false,
     };
 
     // Print the initial state
     controller.print_current_state();
+    controller.state.perform_action();
 
-    // Normal condition, no command_stop or emergency
+    // Transition to Idle when power is on
+    input.power_on = true;
     controller.step(&input);
     controller.print_current_state();
 
-    // Trigger the braking condition
-    input.command_stop = true;
+    // Trigger braking condition
+    input.brake = true;
     controller.step(&input);
     controller.print_current_state();
 
-    // Transition to Idle again
-    input.command_stop = false;
+    // Release braking condition
+    input.brake = false;
     controller.step(&input);
     controller.print_current_state();
 
-    // Emergency condition
-    input.emergency_stop = true;
+    // Trigger emergency stop
+    input.e_stop = true;
     controller.step(&input);
     controller.print_current_state();
 
-    // Clear emergency condition
-    input.emergency_stop = false;
+    // Clear emergency stop
+    input.e_stop = false;
     controller.step(&input);
     controller.print_current_state();
 }
